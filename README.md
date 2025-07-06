@@ -1,17 +1,16 @@
 # 🧠 BrainTransplant
 
-**Portable LLM chat with memory that never forgets.**
+**A GenAI chat app that mimics native interfaces like ChatGPT, Gemini, and Claude — but with memory that travels across models.**
 
-BrainTransplant is a cross-platform chat app that preserves your full LLM conversation history — even when switching between models or providers. With built-in RAG and multi-provider support, BrainTransplant ensures continuity, context, and control across every interaction.
+The name *BrainTransplant* reflects the key idea behind the app: you can swap out the brain of the chat — the LLM that powers it — but keep the memory and context fully intact across every provider while changing seamlessly between them.
 
-> 📅 **Pay-per-use, no fixed subscription.** If you stop using it, you stop paying. While it's theoretically possible to exceed the cost of a fixed ChatGPT Pro plan, most power users will likely see cost savings — explained in the pricing section below.
+BrainTransplant is a cross-platform GenAI chat app that preserves your full LLM conversation history — even when switching between models or vendors. With built-in RAG and multi-provider support, BrainTransplant ensures continuity, context, and control across every interaction.
 
-But cost savings aren't the main point.
+> 📅 **Pay-per-use, no fixed subscription.** If you're currently using ChatGPT Pro, BrainTransplant delivers a similar level of service with multi-LLM flexibility — and in most cases, **lower monthly costs.**
 
-> 🧠 **The core idea is continuity.** Your currently chosen LLM never forgets (unless you want it to) what you discussed with any other LLM you previously talked to via BrainTransplant.
+> 🧠 **The core idea is continuity.** Your currently chosen LLM never forgets (unless you want it to) what you discussed with any other LLM you've previously talked to via BrainTransplant.
 
-That's the essence of the name: you can transplant the brain of your chat — the LLM itself — but keep the memory of your chat consistent across all models.
-
+That's the foundation of BrainTransplant: consistent context and memory across any model you choose.
 ---
 
 ## 🚀 What It Does

@@ -10,7 +10,7 @@ But cost savings aren't the main point.
 
 > 🧠 **The core idea is continuity.** Your currently chosen LLM never forgets (unless you want it to) what you discussed with any other LLM you previously talked to via BrainTransplant.
 
-That's the essence of the name: you can transplant the brain of your chat — the LLM itself — but keep your memory and personality consistent across all models.
+That's the essence of the name: you can transplant the brain of your chat — the LLM itself — but keep the memory of your chat consistent across all models.
 
 ---
 

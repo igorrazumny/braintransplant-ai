@@ -1,4 +1,4 @@
-# 🧠 BrainTransplant
+# 🧠 BrainTransplant.ai
 
 **A GenAI chat app that mimics native interfaces like ChatGPT, Gemini, and Claude — but with memory that travels across models.**
 

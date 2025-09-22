@@ -1,0 +1,41 @@
+# Project: braintransplant-ai — File: .gitignore
+
+# ===== Python cache =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ===== Virtual env =====
+.venv/
+env/
+venv/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== Secrets / env =====
+.env
+*.secret
+*.key
+
+# ===== Data & outputs =====
+data/
+outputs/
+artifacts/
+*.parquet
+*.jsonl
+*.csv
+*.log
+*.duckdb
+
+# ===== Models (downloaded / generated) =====
+models/
+checkpoints/
+
+# ===== IDE / Editor =====
+.idea/
+.vscode/
+
+# ===== Backups =====
+backups/

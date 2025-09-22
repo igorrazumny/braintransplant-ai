@@ -1,0 +1,50 @@
+Copyright (c) 2025 Razum GmbH. All rights reserved.
+Operating under the brand "RazumAI" (RazumAI.ch).
+
+This repository ("Software") and its contents are confidential and proprietary
+to Razum GmbH. By accessing this repository, you agree to the following terms:
+
+1. Limited License
+   You are granted a non-exclusive, non-transferable, revocable license to use
+   the Software solely for internal evaluation and development purposes, and
+   only to the extent expressly authorized in writing by Razum GmbH.
+
+2. Restrictions
+   You may not:
+   - copy, modify, merge, publish, distribute, sublicense, or otherwise make
+     available any part of the Software or its contents;
+   - reverse engineer, decompile, disassemble, or otherwise attempt to derive
+     the source code of any compiled components or trained models;
+   - use the Software or any outputs to train or fine-tune other models;
+   - publish benchmarks, test results, or other performance data without the
+     prior written consent of Razum GmbH.
+
+3. Ownership
+   Razum GmbH retains all rights, title, and interest in and to the Software
+   and all associated intellectual property. No rights are granted except as
+   expressly provided herein.
+
+4. Confidentiality
+   The Software constitutes confidential information of Razum GmbH. You must
+   protect it with at least the same degree of care that you use to protect
+   your own confidential information, but not less than a reasonable standard
+   of care.
+
+5. Warranty Disclaimer
+   The Software is provided "AS IS" and without warranty of any kind, whether
+   express or implied, including but not limited to warranties of
+   merchantability, fitness for a particular purpose, or non-infringement.
+
+6. Limitation of Liability
+   In no event shall Razum GmbH be liable for any damages, whether direct,
+   indirect, incidental, special, exemplary, or consequential, arising from or
+   relating to your use of the Software.
+
+7. Termination
+   Razum GmbH may revoke this license at any time. Upon termination, you must
+   immediately cease use of the Software and delete all copies in your
+   possession.
+
+---
+
+All rights not expressly granted herein are reserved by Razum GmbH.

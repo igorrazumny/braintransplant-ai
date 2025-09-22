@@ -1,0 +1,55 @@
+# Project: braintransplant-ai — File: docker-compose.yml
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        BASE: "cpu"
+    image: braintransplant-ai:cpu
+    container_name: braintransplant-ai
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+      # --- Postgres connection (app -> db) ---
+      - DB_HOST=db
+      - DB_PORT=5432
+      - POSTGRES_USER=braintransplant_ai_user
+      - POSTGRES_PASSWORD=braintransplant_ai_user_password
+      - POSTGRES_DB=braintransplant_ai_db
+
+      # --- App auth ---
+      - ADMIN_TOKEN=admin
+
+      # --- LLM (current) ---
+      - LLM_PROVIDER=gemini
+      - LLM_MODEL=gemini-1.5-pro
+      - GEMINI_STUDIO_API_KEY=${GEMINI_STUDIO_API_KEY}
+
+    command: ["streamlit","run","src/ui/web/app.py","--server.port=8502","--server.address=0.0.0.0"]
+
+    volumes:
+      - data:/app/data:rw
+      - outputs:/app/outputs:rw
+
+    ports:
+      - "8502:8502"   # host:container (avoid clash with logs-ai on 8501)
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    container_name: braintransplant-db
+    restart: always
+    environment:
+      POSTGRES_USER: braintransplant_ai_user
+      POSTGRES_PASSWORD: braintransplant_ai_user_password
+      POSTGRES_DB: braintransplant_ai_db
+    volumes:
+      - braintransplant-ai_pgdata:/var/lib/postgresql/data:rw
+
+volumes:
+  data:
+  outputs:
+  braintransplant-ai_pgdata:

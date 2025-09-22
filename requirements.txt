@@ -12,7 +12,9 @@ psycopg[binary]==3.2.3
 # UI
 streamlit==1.37.1
 
-# LLMs
+# LLMs & Google Cloud
 google-generativeai>=0.7.0
+google-cloud-aiplatform>=1.55.0
+google-cloud-discoveryengine>=0.10.0
 openai>=1.40.6
 anthropic>=0.34.2

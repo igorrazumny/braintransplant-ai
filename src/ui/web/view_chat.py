@@ -72,6 +72,7 @@ def view_chat() -> None:
         page_icon="⛰️",
     )
 
+
     inject_chat_css()
 
     st.title("⛰️ Basecamp 2.0 AI Assistant")

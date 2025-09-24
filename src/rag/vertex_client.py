@@ -1,67 +1,46 @@
 import os
 from typing import List, Tuple
-
-from google.api_core.client_options import ClientOptions
-from google.cloud import discoveryengine_v1 as discoveryengine
+import vertexai
+from vertexai.preview import rag
 
 # --- Configuration ---
-# IMPORTANT: Replace these with the actual values from your Google Cloud project.
-PROJECT_ID = "your-gcp-project-id"
-LOCATION = "global"  # Use "global" unless you created your Search App in a specific region
-DATA_STORE_ID = "your-data-store-id"
+PROJECT_ID = "fresh-myth-471317-j9"
+LOCATION = "europe-west3"
+RAG_CORPUS_NAME = "projects/754198198954/locations/europe-west3/ragCorpora/2305843009213693952"
 
 
 def get_grounded_context(user_query: str) -> Tuple[str, List[str]]:
     """
-    Calls the Vertex AI Search API to retrieve relevant document snippets.
+    Calls the Vertex AI RAG Engine to retrieve relevant document snippets.
 
     Returns:
         A tuple containing:
         1. A formatted string of context snippets for the LLM.
-        2. A list of source citations (document names).
+        2. A list of source citations (document URIs).
     """
-    client_options = (
-        ClientOptions(api_endpoint=f"{LOCATION}-discoveryengine.googleapis.com")
-        if LOCATION != "global"
-        else None
-    )
-    client = discoveryengine.SearchServiceClient(client_options=client_options)
+    vertexai.init(project=PROJECT_ID, location=LOCATION)
 
-    serving_config = client.serving_config_path(
-        project=PROJECT_ID,
-        location=LOCATION,
-        data_store=DATA_STORE_ID,
-        serving_config="default_config",
-    )
-
-    request = discoveryengine.SearchRequest(
-        serving_config=serving_config,
-        query=user_query,
-        page_size=5,
-        content_search_spec=discoveryengine.SearchRequest.ContentSearchSpec(
-            snippet_spec=discoveryengine.SearchRequest.ContentSearchSpec.SnippetSpec(
-                return_snippet=True
-            ),
-            summary_spec=discoveryengine.SearchRequest.ContentSearchSpec.SummarySpec(
-                summary_result_count=5,
-                include_citations=True,
-            ),
-        ),
+    # The top_k parameter goes directly inside the RagResource object
+    response = rag.retrieval_query(
+        rag_resources=[
+            rag.RagResource(
+                rag_corpus=RAG_CORPUS_NAME,
+                top_k=5,  # Specify the number of results here
+            )
+        ],
+        text=user_query,
     )
 
-    response = client.search(request)
-
+    # --- Format the response for the LLM and UI ---
     context_snippets = ""
     citations = set()
-    for i, result in enumerate(response.results):
-        doc = result.document
-        if doc.content_search_spec and doc.content_search_spec.snippet_spec:
-             snippet = doc.content_search_spec.snippet_spec.snippet
-             snippet = snippet.replace("\n", " ")
-             context_snippets += f"[{i+1}] {snippet}\n"
+    for i, chunk in enumerate(response.get("chunks", [])):
+        content = chunk.get("chunk_content", "").replace("\n", " ")
+        source = chunk.get("source_uri", "")
 
-        if doc.derived_struct_data and "title" in doc.derived_struct_data:
-            citations.add(doc.derived_struct_data["title"])
+        context_snippets += f"[{i+1}] {content}\n"
+        if source:
+            citations.add(os.path.basename(source))
 
     if not context_snippets:
         return "No relevant documents found.", []

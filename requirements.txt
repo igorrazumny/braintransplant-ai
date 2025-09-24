@@ -21,3 +21,4 @@ anthropic>=0.34.2
 
 # RAG
 google-cloud-discoveryengine>=0.10.0
+google-cloud-aiplatform>=1.66.0

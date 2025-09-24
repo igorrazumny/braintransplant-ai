@@ -1,4 +1,5 @@
 # Project: braintransplant-ai — File: docker-compose.yml
+
 services:
   app:
     build:
@@ -10,10 +11,10 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
-      # This line MUST point to the key's path INSIDE the container
+      # --- Explicitly point to the Service Account Key ---
       - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcp_service_account.json
-      - GCP_PROJECT_ID=razumai-main
-      # --- Postgres connection ---
+      - GCP_PROJECT_ID=fresh-myth-471317-j9
+      # --- Postgres connection (app -> db) ---
       - DB_HOST=db
       - DB_PORT=5432
       - POSTGRES_USER=braintransplant_ai_user
@@ -21,14 +22,13 @@ services:
       - POSTGRES_DB=braintransplant_ai_db
       # --- App auth ---
       - ADMIN_TOKEN=admin
-      # --- LLM ---
+      # --- LLM (current) ---
       - LLM_PROVIDER=gemini
       - LLM_MODEL=gemini-1.5-pro
 
     command: ["streamlit","run","src/ui/web/app.py","--server.port=8502","--server.address=0.0.0.0"]
 
     volumes:
-      # This line makes the key file available inside the container at /app/
       - .:/app
 
     ports:
@@ -37,4 +37,15 @@ services:
       - db
 
   db:
-    # ... (db service should be correct)
+    image: postgres:16
+    container_name: braintransplant-db
+    restart: always
+    environment:
+      POSTGRES_USER: braintransplant_ai_user
+      POSTGRES_PASSWORD: braintransplant_ai_user_password
+      POSTGRES_DB: braintransplant_ai_db
+    volumes:
+      - braintransplant-ai_pgdata:/var/lib/postgresql/data:rw
+
+volumes:
+  braintransplant-ai_pgdata:

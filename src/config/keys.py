@@ -6,7 +6,6 @@ Keep secrets only in the environment (e.g., GEMINI_STUDIO_API_KEY).
 
 # ---- Canonical Gemini model identifiers (match provider’s API model ids exactly)
 GEMINI_1_5_PRO   = "gemini-1.5-pro"
-GEMINI_1_5_FLASH = "gemini-1.5-flash"
 GEMINI_2_5_PRO = "gemini-2.5-pro"
 
 # ---- Environment variable names (secrets live in .env / Cloud Run)

@@ -18,6 +18,7 @@ venv/
 .env
 *.secret
 *.key
+.config/
 
 # ===== Data & outputs =====
 data/

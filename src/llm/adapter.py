@@ -1,22 +1,24 @@
-# Project: braintransplant-ai — File: src/llm/adapter.py
+# Project: braintransplant-ai | File: src/llm/adapter.py
+
 import os
 import requests
 from typing import List, Dict, Any
 
 from config.keys import (
     GEMINI_1_5_PRO,
+    GEMINI_2_5_PRO,  # Add this import
     ENV_GEMINI_STUDIO_API_KEY,
 )
 
 """
 Strict Gemini-only adapter (API mode).
 - Supported provider: 'gemini' only.
-- Supported model:   'gemini-1.5-pro' only.
+- Supported models: 'gemini-1.5-pro' and 'gemini-2.5-pro'.
 - No silent defaults; all requirements validated.
 
 Required environment:
 - LLM_PROVIDER=gemini
-- LLM_MODEL=gemini-1.5-pro
+- LLM_MODEL=gemini-1.5-pro OR gemini-2.5-pro
 - GEMINI_STUDIO_API_KEY=<your key>
 
 Behavior:
@@ -26,6 +28,7 @@ Behavior:
 """
 
 MAX_OUTPUT_TOKENS = 1000000  # explicit constant
+SUPPORTED_MODELS = [GEMINI_1_5_PRO, GEMINI_2_5_PRO]  # Add this list
 
 
 def _req(name: str) -> str:
@@ -54,8 +57,8 @@ def call_llm(system_prompt: str, user_query: str, timeout_s: int) -> str:
         raise RuntimeError(f"Unsupported LLM_PROVIDER='{provider}'. Only 'gemini' is allowed in braintransplant-ai.")
 
     model_id = _req("LLM_MODEL").strip()
-    if model_id != GEMINI_1_5_PRO:
-        raise RuntimeError(f"Unsupported LLM_MODEL='{model_id}'. Only '{GEMINI_1_5_PRO}' is allowed in braintransplant-ai.")
+    if model_id not in SUPPORTED_MODELS:  # Update this check
+        raise RuntimeError(f"Unsupported LLM_MODEL='{model_id}'. Supported models: {', '.join(SUPPORTED_MODELS)}")
 
     api_key = _req(ENV_GEMINI_STUDIO_API_KEY)
 

@@ -24,7 +24,7 @@ services:
       - ADMIN_TOKEN=admin
       # --- LLM (current) ---
       - LLM_PROVIDER=gemini
-      - LLM_MODEL=gemini-1.5-pro
+      - LLM_MODEL=gemini-2.5-pro
 
     command: ["streamlit","run","src/ui/web/app.py","--server.port=8502","--server.address=0.0.0.0"]
 

@@ -1,16 +1,16 @@
 # Project: braintransplant-ai | File: src/ui/web/view_chat.py
 
+import os
 import uuid
 import streamlit as st
-from dotenv import load_dotenv  # Add this import
+from dotenv import load_dotenv
 from llm.adapter import call_llm
 from ui.web.chat_skin import inject_chat_css, user_bubble
 from db.history import save_chat_turn
 from rag.vertex_client import get_grounded_context
 from ui.web.examples import EXAMPLES_MD
 
-# Load environment variables from .env file
-load_dotenv()  # Add this line
+load_dotenv()
 
 def view_chat() -> None:
     """
@@ -18,8 +18,11 @@ def view_chat() -> None:
     """
     st.set_page_config(page_title="BC2 AI Assistant", page_icon="⛰️")
     inject_chat_css()
-
     st.title("BC2 AI Assistant")
+    provider = os.environ.get("LLM_PROVIDER", "").strip()
+    model = os.environ.get("LLM_MODEL", "").strip()
+    if provider and model:
+        st.caption(f"Model: {provider} / {model}")
     st.markdown(EXAMPLES_MD)
 
     # --- Session State Initialization ---
@@ -41,14 +44,14 @@ def view_chat() -> None:
     user_bubble(user_q)
 
     with st.spinner("Searching documents and thinking..."):
-        # 1. RETRIEVE: Get grounded context from Vertex AI Search
+        # 1) RETRIEVE: Get grounded context from Vertex RAG
         try:
             context_for_llm, citations = get_grounded_context(user_q)
         except Exception as e:
             st.error(f"Error retrieving documents: {e}")
             return
 
-        # 2. AUGMENT & GENERATE: Build the prompt and call the LLM
+        # 2) AUGMENT & GENERATE: Build the prompt and call the LLM
         system_prompt = (
             "You are a helpful assistant named 'BC2 AI Assistant'. Based ONLY on the provided context snippets, "
             "answer the user's question concisely. Your answer must be grounded in the facts from the context. "
@@ -65,23 +68,25 @@ def view_chat() -> None:
             st.error(f"Error communicating with the language model: {e}")
             return
 
-        # 3. DISPLAY: Show the answer and its sources to the user
+        # 3) DISPLAY: Show the answer and its sources
         final_answer_with_sources = final_answer
         if citations:
-            sources_md = "\n\n**Sources:**\n" + "\n".join(f"- {c}" for c in sorted(citations))
+            ordered = sorted(citations)
+            lines = [f"- {c}" for c in ordered]
+            sources_md = "\n\n**Sources:**\n" + "\n".join(lines)
             final_answer_with_sources += sources_md
 
         st.markdown(final_answer_with_sources)
 
-        # 4. SAVE: Update history and save to DB
+        # 4) SAVE: Update history and persist
         st.session_state["history"].append({"user": user_q, "assistant": final_answer_with_sources})
-
         save_chat_turn(
             session_id=st.session_state["session_id"],
             user_query=user_q,
             retrieved_context=context_for_llm,
             model_response=final_answer_with_sources
         )
+
 
 if __name__ == "__main__":
     view_chat()

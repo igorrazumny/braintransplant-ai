@@ -1,11 +1,16 @@
-# Project: braintransplant-ai — File: src/ui/web/view_chat.py
+# Project: braintransplant-ai | File: src/ui/web/view_chat.py
+
 import uuid
 import streamlit as st
+from dotenv import load_dotenv  # Add this import
 from llm.adapter import call_llm
 from ui.web.chat_skin import inject_chat_css, user_bubble
 from db.history import save_chat_turn
 from rag.vertex_client import get_grounded_context
-from ui.web.examples import EXAMPLES_MD # <-- Import the examples
+from ui.web.examples import EXAMPLES_MD
+
+# Load environment variables from .env file
+load_dotenv()  # Add this line
 
 def view_chat() -> None:
     """
@@ -15,7 +20,7 @@ def view_chat() -> None:
     inject_chat_css()
 
     st.title("BC2 AI Assistant")
-    st.markdown(EXAMPLES_MD) # <-- Display the introductory text
+    st.markdown(EXAMPLES_MD)
 
     # --- Session State Initialization ---
     if "history" not in st.session_state:
@@ -55,7 +60,7 @@ def view_chat() -> None:
         )
 
         try:
-            final_answer = call_llm(system_prompt, prompt)
+            final_answer = call_llm(system_prompt, prompt, timeout_s=60)
         except Exception as e:
             st.error(f"Error communicating with the language model: {e}")
             return

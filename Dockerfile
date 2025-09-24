@@ -1,7 +1,7 @@
 # Project: braintransplant-ai — File: Dockerfile
 ARG BASE=cpu
 
-FROM python:3.11-slim AS base_cpu
+FROM public.ecr.aws/docker/library/python:3.11-slim AS base_cpu
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base_cuda
 
 FROM base_${BASE} AS app

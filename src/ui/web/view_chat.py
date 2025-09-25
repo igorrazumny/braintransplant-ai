@@ -9,14 +9,13 @@ from llm.adapter import call_llm
 from ui.web.chat_skin import inject_chat_css, user_bubble
 from db.history import save_chat_turn
 from rag.vertex_client import get_grounded_context
-from ui.web.examples import EXAMPLES_MD
 from utils.logger import get_logger
 
 load_dotenv()
 
 def view_chat() -> None:
     """
-    Render chat UI; all logs go to /app/outputs/logs/braintransplant.log via utils.logger.
+    Render chat UI with verbose response and response time display; logs to /app/outputs/logs/braintransplant.log.
     """
     logger = get_logger("btai.ui.chat")
     st.set_page_config(page_title="BC2 AI Assistant – Sabrina", page_icon="⛰️")
@@ -25,11 +24,38 @@ def view_chat() -> None:
     st.title("BC2 AI Assistant – Sabrina")
     provider = os.environ.get("LLM_PROVIDER", "").strip()
     model = os.environ.get("LLM_MODEL", "").strip()
-    if provider and model:
-        st.caption(f"Model: {model}")
-    st.markdown(EXAMPLES_MD)
+    # if provider and model:
+    #     st.caption(f"Model: {provider} / {model}")
 
     logger.info(f"UI loaded | provider={provider} | model={model}")
+
+    # --- Dynamic Intro: Overview of Documents + Examples (via RAG) ---
+    if "intro_shown" not in st.session_state:
+        st.session_state["intro_shown"] = True
+        try:
+            t0 = time.perf_counter()
+            # RAG query for corpus overview
+            overview_context, _ = get_grounded_context("Give a two-sentence overview of all loaded documents and their topics.")
+            overview = overview_context.strip().split('\n')[0]  # Take first clean line
+
+            # RAG query for example questions
+            examples_context, _ = get_grounded_context("Extract 2-3 real example questions users might ask based on document content.")
+            ex_lines = [l.strip() for l in examples_context.split('\n') if l.strip().startswith('-') or l.strip().startswith('*')][:3]  # Extract bullet-like lines
+
+            # Build dynamic markdown
+            dynamic_md = (
+                f"Hello! I'm Sabrina, your Basecamp 2.0 AI Assistant.\n\n"
+                f"Basecamp 2.0 is Roche's Product Lifecycle Management (PLM) system, designed to manage "
+                f"manufacturing process specifications across the network, including steps, activities, parameters, and "
+                f"materials. I can provide insights and explanations on its core functions.\n\n"
+                f"Overview of loaded documents: {overview}\n\n"
+                f"You can ask such questions as:\n" + "\n".join(ex_lines)
+            )
+            st.markdown(dynamic_md)
+            logger.info(f"Dynamic intro generated | dt={(time.perf_counter() - t0):.2f}s")
+        except Exception as e:
+            logger.error(f"Dynamic intro failed: {e}")
+            st.markdown("Hello! I'm Sabrina, your Basecamp 2.0 AI Assistant. Ask me about manufacturing specs or processes.")
 
     # --- Session State Initialization ---
     if "history" not in st.session_state:
@@ -64,31 +90,39 @@ def view_chat() -> None:
             st.error(f"Error retrieving documents: {e}")
             return
 
-        # 2) AUGMENT & GENERATE: LLM call
+        # 2) AUGMENT & GENERATE: LLM call with verbose mode
         system_prompt = (
             "You are a helpful assistant named 'BC2 AI Assistant'. Based ONLY on the provided context snippets, "
-            "answer the user's question concisely. Your answer must be grounded in the facts from the context. "
+            "answer the user's question in detail and verbosely, including breakdowns and explanations where available. "
+            "Be comprehensive so users have enough information without needing to open sources—provide tables or lists if data allows. "
             "If the context does not contain the answer, state that you do not have enough information from the provided documents."
         )
         prompt = f"CONTEXT:\n{context_for_llm}\n\nUSER QUESTION:\n{user_q}"
 
         try:
             t_llm0 = time.perf_counter()
-            final_answer = call_llm(system_prompt, prompt, timeout_s=60)
+            final_answer = call_llm(system_prompt, prompt, timeout_s=60)  # Removed stream=True
             t_llm = time.perf_counter() - t_llm0
+            # Simulate partial progress (fallback for no streaming)
+            st.write("Generating response... Initializing analysis.")
+            time.sleep(1)  # Simulate first chunk delay (~1s for user feedback)
+            st.write(final_answer)  # Full response
             logger.info(f"LLM ok | ans_chars={len(final_answer)} | dt={t_llm:.2f}s")
         except Exception as e:
             logger.error(f"LLM error | {e}\n{traceback.format_exc()}")
             st.error(f"Error communicating with the language model: {e}")
             return
 
-        # 3) DISPLAY: answer + sources
+        # 3) DISPLAY: Finalize with sources (if not streamed) and response time
+        total_time = time.perf_counter() - t0
         final_answer_with_sources = final_answer
-        if citations:
+        if citations and not any(c in final_answer for c in citations):  # Add sources if LLM didn't
             sources_md = "\n\n**Sources:**\n" + "\n".join(f"- {c}" for c in sorted(citations))
             final_answer_with_sources += sources_md
+            st.markdown(sources_md)
 
-        st.markdown(final_answer_with_sources)
+        # Display response time
+        st.markdown(f"**Response generated in {total_time:.2f} seconds.**")
 
         # 4) SAVE: persist
         st.session_state["history"].append({"user": user_q, "assistant": final_answer_with_sources})
@@ -104,31 +138,6 @@ def view_chat() -> None:
             logger.error(f"DB save error | {e}\n{traceback.format_exc()}")
 
     logger.info(f"Q end | session={sess} | total_dt={(time.perf_counter()-t0):.2f}s")
-
-    # --- Sticky Footer Disclaimer (Option 3: Sticky footer at bottom of page) ---
-    st.markdown(
-        """
-        <style>
-        .sticky-footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background-color: #2c2c2c;
-            color: #ffffff;
-            text-align: center;
-            padding: 2px;
-            font-size: 12px;
-            z-index: 1000;
-            opacity: 0.8;
-        }
-        </style>
-        <div class="sticky-footer">
-            Note: BC2 AI Assistant can make mistakes. Please always check the original documents.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 if __name__ == "__main__":
     view_chat()

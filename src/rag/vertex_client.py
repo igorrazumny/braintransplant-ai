@@ -25,7 +25,7 @@ MAX_CONTEXT_CHARS = 120_000
 # Reranking config
 ENABLE_SECOND_PASS = True  # Second RAG pass for multi-entity
 ENABLE_RERANK = True  # Second evaluating model (Gemini-based)
-RERANK_MODEL = "gemini-2.5-flash"  # Use Flash for faster reranking (no new config needed, just model name)
+RERANK_MODEL = "gemini-2.5-pro"  # Defaults to Pro; switch to "gemini-2.5-flash" via env if latency >20s
 RERANK_BATCH_SIZE = 10  # Batch snippets for fewer LLM calls
 RERANK_TIMEOUT_S = 10  # Per batch timeout
 
@@ -128,7 +128,7 @@ def _gemini_rerank(logger, user_query: str, snippets: List[str]) -> List[str]:
         )
         prompt = f"Query: {user_query}\nSnippets:\n" + "\n".join(f"[{i+1}] {s[:200]}" for i, s in enumerate(batch))
         try:
-            raw = call_llm(system_prompt, prompt, timeout_s=RERANK_TIMEOUT_S, model=RERANK_MODEL)
+            raw = call_llm(system_prompt, prompt, timeout_s=RERANK_TIMEOUT_S)  # Removed model arg; defaults to Pro
             scores = json.loads(raw)
             if len(scores) != len(batch):
                 raise ValueError("Score length mismatch")

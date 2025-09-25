@@ -1,184 +1,162 @@
-import streamlit as st
+# Project: braintransplant-ai — File: src/ui/admin/app_admin.py
 import os
 import shutil
 import time
+import streamlit as st
+from google.cloud import storage
 import vertexai
 from vertexai.preview import rag
-from google.cloud import storage
 
 # --- Configuration ---
 PROJECT_ID = "fresh-myth-471317-j9"
 LOCATION = "europe-west3"
 RAG_CORPUS_NAME = "projects/754198198954/locations/europe-west3/ragCorpora/2305843009213693952"
-STAGING_DIR = "/app/data/uploads"  # Directory where DevOps places new files
-INGESTED_DIR = "/app/data/ingested"  # Subfolder for successfully processed files
-
-# Use a simple, predictable bucket name
+STAGING_DIR = "/app/data/uploads"  # DevOps drops files here
+INGESTED_DIR = "/app/data/ingested"  # Move files here after import
 GCS_BUCKET = f"{PROJECT_ID}-rag-staging"
-GCS_PREFIX = "imports"
+GCS_PREFIX = "imports"  # GCS prefix for uploads
 
-
-def init_vertex():
-    """Initialize Vertex AI."""
+# --- Vertex + GCS helpers ---
+def _init_vertex() -> None:
+    """Initializes the Vertex AI client."""
     vertexai.init(project=PROJECT_ID, location=LOCATION)
 
+def _storage_client() -> storage.Client:
+    """Returns a Google Cloud Storage client."""
+    return storage.Client(project=PROJECT_ID)
 
-def ensure_gcs_bucket():
-    """Ensure GCS bucket exists for RAG staging."""
-    try:
-        storage_client = storage.Client(project=PROJECT_ID)
+def _ensure_gcs_bucket() -> storage.Bucket:
+    """Creates the GCS bucket if it doesn't exist and verifies its existence."""
+    client = _storage_client()
+    bucket = client.bucket(GCS_BUCKET)
+    if not bucket.exists():
         try:
-            bucket = storage_client.create_bucket(GCS_BUCKET, location=LOCATION)
-            st.info(f"Created bucket: {GCS_BUCKET}")
-        except:
-            bucket = storage_client.bucket(GCS_BUCKET)
-        return bucket
+            bucket.create(location=LOCATION)
+            st.toast(f"Created GCS bucket: {GCS_BUCKET} in {LOCATION}")
+        except Exception as e:
+            st.error(f"Failed to create bucket {GCS_BUCKET}: {e}. Check permissions and region.")
+            raise
+    else:
+        st.toast(f"Using existing GCS bucket: {GCS_BUCKET}")
+    return bucket
+
+def _gcs_uri(filename: str) -> str:
+    """Constructs the GCS URI for a given filename."""
+    return f"gs://{GCS_BUCKET}/{GCS_PREFIX}/{filename}"
+
+# --- RAG operations ---
+def _import_single_gcs_uri(gs_uri: str, timeout_s: int = 900) -> None:
+    """Imports a single file from GCS into the RAG corpus."""
+    _init_vertex()
+    op = rag.import_files(
+        rag_corpus=RAG_CORPUS_NAME,
+        gcs_source_uris=[gs_uri],
+        chunk_size=1024,
+        chunk_overlap=200,
+    )
+    op.result(timeout=timeout_s)
+
+def _list_rag_files():
+    """Lists all files in the RAG corpus."""
+    _init_vertex()
+    try:
+        return list(rag.list_files(corpus_name=RAG_CORPUS_NAME))  # Pass required corpus_name
+    except (AttributeError, NotImplementedError) as e:
+        st.error(f"Listing files not supported by RAG API: {e}. Deletion may require manual cleanup or import history.")
+        return []  # Return empty list if listing fails
+
+def _delete_rag_file(file_name: str) -> None:
+    """Deletes a single file from the RAG corpus."""
+    _init_vertex()
+    try:
+        operation = rag.delete_file(name=file_name)
+        if operation:
+            operation.result(timeout=300)  # Poll for completion
+            st.write(f"Successfully deleted: {file_name}")
+        else:
+            st.error(f"Deletion operation returned None for {file_name}")
     except Exception as e:
-        st.error(f"Bucket error: {e}")
-        return None
+        st.error(f"Failed to delete {file_name}: {e}")
 
+def delete_all_rag_files() -> int:
+    """Deletes all files from the RAG corpus."""
+    files = _list_rag_files()
+    deleted = 0
+    for f in files:
+        try:
+            file_name = f.name if hasattr(f, 'name') else f
+            _delete_rag_file(file_name)
+            deleted += 1
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+    if not files:
+        st.warning("No files found to delete or listing not supported. Ensure corpus is populated.")
+    return deleted
 
-def upload_all_to_rag():
-    """Upload all files from staging to RAG."""
-    init_vertex()
-
+def upload_all_from_staging() -> tuple[int, int]:
+    """
+    Uploads all files from staging to GCS, imports to RAG, moves to ingested dir.
+    Returns (success_count, failure_count).
+    """
     os.makedirs(STAGING_DIR, exist_ok=True)
     os.makedirs(INGESTED_DIR, exist_ok=True)
 
-    files = [f for f in os.listdir(STAGING_DIR)
-             if os.path.isfile(os.path.join(STAGING_DIR, f))]
-
-    if not files:
+    files_to_process = [f for f in os.listdir(STAGING_DIR) if
+                        os.path.isfile(os.path.join(STAGING_DIR, f)) and not f.startswith('.')]
+    if not files_to_process:
         return 0, 0
 
-    bucket = ensure_gcs_bucket()
-    if not bucket:
-        return 0, len(files)
+    bucket = _ensure_gcs_bucket()
+    success_count = 0
+    failure_count = 0
 
-    success = 0
-    failed = 0
+    progress_bar = st.progress(0.0, text="Starting upload...")
 
-    for filename in files:
-        source_path = os.path.join(STAGING_DIR, filename)
+    for i, filename in enumerate(files_to_process):
+        src_path = os.path.join(STAGING_DIR, filename)
+        progress_text = f"Processing ({i + 1}/{len(files_to_process)}): {filename}"
+        progress_bar.progress((i) / len(files_to_process), text=progress_text)
+
         try:
             # Upload to GCS
             blob_name = f"{GCS_PREFIX}/{filename}"
             blob = bucket.blob(blob_name)
-            blob.upload_from_filename(source_path)
-            gcs_uri = f"gs://{GCS_BUCKET}/{blob_name}"
+            blob.upload_from_filename(src_path)
+            gs_uri = _gcs_uri(filename)
 
-            # Import to RAG (using preview API correctly)
-            operation = rag.import_files(
-                corpus_name=RAG_CORPUS_NAME,  # First positional argument
-                gcs_uris=[gcs_uri],  # List of URIs
-                chunk_size=1024,
-                chunk_overlap=200
-            )
+            # Import to RAG
+            _import_single_gcs_uri(gs_uri, timeout_s=900)
 
-            # Wait for import to complete
-            result = operation.result(timeout=300)
+            # Move to ingested dir
+            dst_path = os.path.join(INGESTED_DIR, filename)
+            shutil.move(src_path, dst_path)
 
-            # Move to ingested folder on success
-            dest_path = os.path.join(INGESTED_DIR, filename)
-            shutil.move(source_path, dest_path)
-            st.write(f"✅ Imported: {filename}")
-            success += 1
-
+            st.write(f"✅ Successfully imported: {filename}")
+            success_count += 1
         except Exception as e:
-            st.error(f"Failed {filename}: {e}")
-            failed += 1
+            st.write(f"❌ Failed to import {filename}: {e}")
+            failure_count += 1
 
-    return success, failed
+        progress_bar.progress((i + 1) / len(files_to_process), text=progress_text)
 
-
-def delete_all_from_rag():
-    """Delete all files from RAG corpus."""
-    init_vertex()
-    deleted = 0
-
-    try:
-        # List files using the correct API call (corpus name as first argument)
-        files = list(rag.list_files(RAG_CORPUS_NAME))
-
-        for file in files:
-            try:
-                # Delete using the file's full resource name
-                rag.delete_file(name=file.name).result(timeout=60)
-                deleted += 1
-            except Exception as e:
-                st.error(f"Failed to delete {file.name}: {e}")
-
-    except Exception as e:
-        st.error(f"Error listing files: {e}")
-
-    return deleted
-
-
-def show_current_rag_files():
-    """Show files currently in RAG."""
-    init_vertex()
-    try:
-        # List files with corpus name as first positional argument
-        files = list(rag.list_files(RAG_CORPUS_NAME))
-
-        if files:
-            st.write(f"Files in corpus: **{len(files)}**")
-            for file in files:
-                # Get display name or extract from resource name
-                display_name = getattr(file, 'display_name', None)
-                if not display_name and hasattr(file, 'name'):
-                    display_name = file.name.split('/')[-1]
-                st.write(f"• {display_name or 'Unnamed'}")
-        else:
-            st.write("No files in RAG corpus")
-
-    except Exception as e:
-        st.error(f"Cannot list files: {e}")
-
+    progress_bar.empty()
+    return success_count, failure_count
 
 def render_admin():
-    """Simple admin interface with two buttons for RAG management."""
-    st.title("Admin")
+    """Renders admin UI for RAG document management."""
+    st.title("BrainTransplant Admin Panel")
+    st.write("Manage documents for Vertex AI RAG index.")
 
-    # Show current RAG contents
-    with st.expander("Current RAG Files", expanded=False):
-        show_current_rag_files()
+    if st.button("Clear RAG Index"):
+        with st.spinner("Clearing RAG index..."):
+            deleted_count = delete_all_rag_files()
+            if deleted_count > 0:
+                st.success(f"Successfully cleared {deleted_count} documents from RAG index.")
+            elif deleted_count == 0:
+                st.warning("No files found to delete or listing not supported. Ensure corpus is populated.")
 
-    # File count in staging
-    staging_count = 0
-    if os.path.exists(STAGING_DIR):
-        staging_count = len([f for f in os.listdir(STAGING_DIR)
-                             if os.path.isfile(os.path.join(STAGING_DIR, f))])
-
-    st.info(f"Files in staging: {staging_count}")
-
-    # Two main action buttons
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("🗑️ Remove All from RAG", type="secondary", use_container_width=True):
-            with st.spinner("Removing all files..."):
-                try:
-                    deleted = delete_all_from_rag()
-                    st.success(f"Deleted {deleted} files from RAG")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
-
-    with col2:
-        if st.button("📤 Upload All to RAG", type="primary", use_container_width=True):
-            if staging_count > 0:
-                with st.spinner("Uploading files..."):
-                    try:
-                        success, failed = upload_all_to_rag()
-                        if success:
-                            st.success(f"Uploaded {success} files to RAG")
-                        if failed:
-                            st.error(f"Failed: {failed} files")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
-            else:
-                st.warning("No files in staging to upload")
+    if st.button("Upload Files to RAG"):
+        with st.spinner("Uploading files to RAG index..."):
+            successes, failures = upload_all_from_staging()
+            if not successes and not failures:
+                st.warning("No files found in staging directory.")

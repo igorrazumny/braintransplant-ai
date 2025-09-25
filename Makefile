@@ -2,23 +2,28 @@
 # Minimal Makefile for braintransplant-ai (Postgres + Web UI)
 
 # ======== Constants (no defaults) ========
-DB_USER       = braintransplant_ai_user
-DB_NAME       = braintransplant_ai_db
+DB_USER      = braintransplant_ai_user
+DB_NAME      = braintransplant_ai_db
+LOG_DIR_HOST = outputs/logs
+LOG_DIR_APP  = /app/outputs/logs
 
 # ======== Public targets ========
 
-# Basic redeploy: rebuild app (keeps DB volume & outputs) and start services.
+# Basic redeploy: clear logs, rebuild app (keeps DB volume), start services.
 redeploy:
+	$(MAKE) clean-logs
 	docker compose build app
 	$(MAKE) _start
 
 # Clean redeploy: reset DB schema to empty (drop/recreate public), re-apply schema, then start.
 redeploy-clean:
+	$(MAKE) clean-logs
 	$(MAKE) _db-reset-schema
 	$(MAKE) _start
 
 # Hard redeploy: remove containers & volumes, prune Docker cache, then start fresh.
 redeploy-hard:
+	$(MAKE) clean-logs
 	$(MAKE) _hard-reset
 	$(MAKE) _start
 
@@ -32,6 +37,21 @@ show-db-stats:
 		SELECT relname AS table, n_live_tup AS estimated_rows \
 		FROM pg_stat_user_tables \
 		ORDER BY relname;"
+
+# Remove app logs (host + running container, if present).
+clean-logs:
+	@echo "Cleaning host logs in $(LOG_DIR_HOST)…"
+	mkdir -p "$(LOG_DIR_HOST)"
+	@# Delete only files, not the directory itself (robust even if none exist)
+	-find "$(LOG_DIR_HOST)" -maxdepth 1 -type f -name '*.log' -print -delete || true
+	@echo "Cleaning container logs in $(LOG_DIR_APP)…"
+	@# Exec only if the app container is running
+	@if [ -n "$$(docker compose ps -q app)" ]; then \
+		docker compose exec -T app /bin/sh -lc 'mkdir -p "$(LOG_DIR_APP)"; find "$(LOG_DIR_APP)" -maxdepth 1 -type f -name "*.log" -print -delete || true'; \
+	else \
+		echo "(app container not running — skipped container log cleanup)"; \
+	fi
+	@echo "Logs cleaned."
 
 # ======== Internal helpers (underscored) ========
 
@@ -58,4 +78,4 @@ _db-reset-schema:
 _db-apply-schema:
 	docker compose run --rm app python -m db.init_db
 
-.PHONY: redeploy redeploy-clean redeploy-hard psql show-db-stats _start _hard-reset _db-reset-schema _db-apply-schema
+.PHONY: redeploy redeploy-clean redeploy-hard psql show-db-stats clean-logs _start _hard-reset _db-reset-schema _db-apply-schema

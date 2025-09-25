@@ -19,14 +19,14 @@ def view_chat() -> None:
     Render chat UI; all logs go to /app/outputs/logs/braintransplant.log via utils.logger.
     """
     logger = get_logger("btai.ui.chat")
-    st.set_page_config(page_title="BC2 AI Assistant", page_icon="⛰️")
+    st.set_page_config(page_title="BC2 AI Assistant – Sabrina", page_icon="⛰️")
     inject_chat_css()
 
-    st.title("BC2 AI Assistant")
+    st.title("BC2 AI Assistant – Sabrina")
     provider = os.environ.get("LLM_PROVIDER", "").strip()
     model = os.environ.get("LLM_MODEL", "").strip()
     if provider and model:
-        st.caption(f"Model: {provider} / {model}")
+        st.caption(f"Model: {model}")
     st.markdown(EXAMPLES_MD)
 
     logger.info(f"UI loaded | provider={provider} | model={model}")
@@ -104,6 +104,31 @@ def view_chat() -> None:
             logger.error(f"DB save error | {e}\n{traceback.format_exc()}")
 
     logger.info(f"Q end | session={sess} | total_dt={(time.perf_counter()-t0):.2f}s")
+
+    # --- Sticky Footer Disclaimer (Option 3: Sticky footer at bottom of page) ---
+    st.markdown(
+        """
+        <style>
+        .sticky-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #2c2c2c;
+            color: #ffffff;
+            text-align: center;
+            padding: 2px;
+            font-size: 12px;
+            z-index: 1000;
+            opacity: 0.8;
+        }
+        </style>
+        <div class="sticky-footer">
+            Note: BC2 AI Assistant can make mistakes. Please always check the original documents.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 if __name__ == "__main__":
     view_chat()

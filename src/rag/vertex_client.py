@@ -2,6 +2,7 @@
 import os
 import traceback
 from typing import List, Tuple
+import collections  # For deduping
 
 import vertexai
 from vertexai.preview import rag
@@ -12,8 +13,8 @@ PROJECT_ID = os.getenv("GCP_PROJECT_ID", "fresh-myth-471317-j9")
 LOCATION = "europe-west3"
 RAG_CORPUS_NAME = "projects/754198198954/locations/europe-west3/ragCorpora/2305843009213693952"
 
-# High-recall caps
-TOP_K_SNIPPETS = 10  # Start with reasonable number, can increase if needed
+# Loosened high-recall caps for better reliability
+TOP_K_SNIPPETS = 50  # Increased to 50 for even better recall, reducing "no info" risks (suggestion: increase top_k + dedup)
 MAX_CONTEXT_CHARS = 120_000
 MIN_SNIPPET_LEN = 20
 
@@ -25,10 +26,23 @@ def _init_vertex(logger) -> None:
     logger.info(f"vertexai.init(project={PROJECT_ID}, location={LOCATION})")
 
 
+def _dedupe_snippets(snippets: List[str]) -> List[str]:
+    """Simple deduping by signature to reduce redundancy (suggestion: increase top_k + dedup)."""
+    seen = set()
+    out = []
+    for s in snippets:
+        sig = " ".join((s or "").split()[:25])[:140]  # First 140 chars as signature
+        if sig in seen:
+            continue
+        seen.add(sig)
+        out.append(s)
+    return out
+
+
 def _retrieve_snippets_rag(logger, user_query: str) -> List[str]:
     """
     Use retrieval_query which is the actual function available in the SDK.
-    This matches your original working implementation.
+    This matches your original working implementation with loosened top_k and deduping.
     """
     _init_vertex(logger)
     logger.info(f"RAG retrieval_query start | top_k={TOP_K_SNIPPETS} | query={user_query[:200]}")
@@ -95,13 +109,16 @@ def _retrieve_snippets_rag(logger, user_query: str) -> List[str]:
             logger.error(f"Contexts type: {type(response.contexts)}")
             logger.error(f"Contexts attributes: {dir(response.contexts)}")
 
+    # Dedup snippets to reduce redundancy (suggestion: increase top_k + dedup)
+    snippets = _dedupe_snippets(snippets)
+
     logger.info(f"RAG retrieval_query done | snippets={len(snippets)}")
     return snippets
 
 
 def get_grounded_context(user_query: str) -> Tuple[str, List[str]]:
     """
-    High-recall retrieval and CONTEXT builder.
+    High-recall retrieval and CONTEXT builder with head/tail emphasis.
     Returns (context_text, citations).
     """
     logger = get_logger("btai.rag.client")
@@ -116,11 +133,18 @@ def get_grounded_context(user_query: str) -> Tuple[str, List[str]]:
         logger.info("no snippets returned")
         return "No relevant documents found.", []
 
+    # Head/tail emphasis: Top 3 first, 2 strong at end, middle in between (suggestion: head/tail emphasis)
+    head = snippets[:3]
+    tail = snippets[-2:] if len(snippets) > 5 else []
+    middle = snippets[3:-2] if len(snippets) > 5 else snippets[3:]
+
+    ordered = head + middle + tail
+
     parts: List[str] = []
     total = 0
-    citations = set()
+    citations: List[str] = []  # Empty for now, as no doc IDs available
 
-    for i, snip in enumerate(snippets, start=1):
+    for i, snip in enumerate(ordered, start=1):
         s = (snip or "").strip()
         if len(s) < MIN_SNIPPET_LEN:
             continue
@@ -130,9 +154,7 @@ def get_grounded_context(user_query: str) -> Tuple[str, List[str]]:
             break
         parts.append(line)
         total += len(line)
-        # Add meaningful citation if you have document names
-        citations.add("Corporate Reports")
 
     context = "".join(parts)
     logger.info(f"context built | ctx_chars={len(context)} | citations={len(citations)}")
-    return context, sorted(citations)
+    return context, citations

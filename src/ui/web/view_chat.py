@@ -21,7 +21,7 @@ def view_chat() -> None:
     st.set_page_config(page_title="BC2 AI Assistant – Sabrina", page_icon="⛰️")
     inject_chat_css()
 
-    st.title("BC2 AI Assistant – Sabrina")
+    # st.title("BC2 AI Assistant – Sabrina")
     provider = os.environ.get("LLM_PROVIDER", "").strip()
     model = os.environ.get("LLM_MODEL", "").strip()
     # if provider and model:

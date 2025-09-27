@@ -35,12 +35,12 @@ def view_chat() -> None:
         try:
             t0 = time.perf_counter()
             # RAG query for corpus overview
-            overview_context, _ = get_grounded_context("Give a two-sentence overview of all loaded documents and their topics.")
-            overview = overview_context.strip().split('\n')[0]  # Take first clean line
+            # overview_context, _ = get_grounded_context("Give a two-sentence overview of all loaded documents and their topics.")
+            # overview = overview_context.strip().split('\n')[0]  # Take first clean line
 
             # RAG query for example questions
-            examples_context, _ = get_grounded_context("Extract 2-3 real example questions users might ask based on document content.")
-            ex_lines = [l.strip() for l in examples_context.split('\n') if l.strip().startswith('-') or l.strip().startswith('*')][:3]  # Extract bullet-like lines
+            # examples_context, _ = get_grounded_context("Extract 2-3 real example questions users might ask based on document content.")
+            # ex_lines = [l.strip() for l in examples_context.split('\n') if l.strip().startswith('-') or l.strip().startswith('*')][:3]  # Extract bullet-like lines
 
             # Build dynamic markdown
             dynamic_md = (
@@ -48,8 +48,8 @@ def view_chat() -> None:
                 f"Basecamp 2.0 is Roche's Product Lifecycle Management (PLM) system, designed to manage "
                 f"manufacturing process specifications across the network, including steps, activities, parameters, and "
                 f"materials. I can provide insights and explanations on its core functions.\n\n"
-                f"Overview of loaded documents: {overview}\n\n"
-                f"You can ask such questions as:\n" + "\n".join(ex_lines)
+                # f"Overview of loaded documents: {overview}\n\n"
+                # f"You can ask such questions as:\n" + "\n".join(ex_lines)
             )
             st.markdown(dynamic_md)
             logger.info(f"Dynamic intro generated | dt={(time.perf_counter() - t0):.2f}s")

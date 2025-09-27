@@ -40,3 +40,9 @@ checkpoints/
 
 # ===== Backups =====
 backups/
+
+# ===== Debugging =====
+src/debugging/
+
+# ===== Archive =====
+archive/

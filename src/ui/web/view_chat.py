@@ -93,8 +93,8 @@ def view_chat() -> None:
         # 2) AUGMENT & GENERATE: LLM call with verbose mode
         system_prompt = (
             "You are a helpful assistant named 'BC2 AI Assistant'. Based ONLY on the provided context snippets, "
-            "answer the user's question in detail and verbosely, including breakdowns and explanations where available. "
-            "Be comprehensive so users have enough information without needing to open sources—provide tables or lists if data allows. "
+            "answer the user's question in sufficient detail so that user probably wouldn't even go to the source file, including breakdowns and explanations where needed and relevant. "
+            "Be comprehensive enough so users have enough information without needing to open sources—provide tables or lists if data allows. "
             "If the context does not contain the answer, state that you do not have enough information from the provided documents."
         )
         prompt = f"CONTEXT:\n{context_for_llm}\n\nUSER QUESTION:\n{user_q}"

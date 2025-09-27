@@ -38,20 +38,20 @@ show-db-stats:
 		FROM pg_stat_user_tables \
 		ORDER BY relname;"
 
-# Remove app logs (host + running container, if present).
+# Truncate app logs (host + running container, if present) to empty them.
 clean-logs:
-	@echo "Cleaning host logs in $(LOG_DIR_HOST)…"
+	@echo "Emptying host logs in $(LOG_DIR_HOST)…"
 	mkdir -p "$(LOG_DIR_HOST)"
-	@# Delete only files, not the directory itself (robust even if none exist)
-	-find "$(LOG_DIR_HOST)" -maxdepth 1 -type f -name '*.log' -print -delete || true
-	@echo "Cleaning container logs in $(LOG_DIR_APP)…"
+	@# Truncate log files to zero bytes without deleting them
+	-find "$(LOG_DIR_HOST)" -maxdepth 1 -type f -name '*.log' -exec truncate -s 0 {} + || true
+	@echo "Emptying container logs in $(LOG_DIR_APP)…"
 	@# Exec only if the app container is running
 	@if [ -n "$$(docker compose ps -q app)" ]; then \
-		docker compose exec -T app /bin/sh -lc 'mkdir -p "$(LOG_DIR_APP)"; find "$(LOG_DIR_APP)" -maxdepth 1 -type f -name "*.log" -print -delete || true'; \
+		docker compose exec -T app /bin/sh -lc 'mkdir -p "$(LOG_DIR_APP)"; find "$(LOG_DIR_APP)" -maxdepth 1 -type f -name "*.log" -exec truncate -s 0 {} + || true'; \
 	else \
 		echo "(app container not running — skipped container log cleanup)"; \
 	fi
-	@echo "Logs cleaned."
+	@echo "Logs emptied."
 
 # ======== Internal helpers (underscored) ========
 

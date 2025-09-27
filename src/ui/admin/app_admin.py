@@ -13,8 +13,8 @@ from utils.logger import get_logger
 
 # ========== Explicit configuration ==========
 PROJECT_ID = "fresh-myth-471317-j9"
-LOCATION = "europe-west3"
-RAG_CORPUS_NAME = "projects/754198198954/locations/europe-west3/ragCorpora/2305843009213693952"
+LOCATION = "europe-west4"
+RAG_CORPUS_NAME = "projects/fresh-myth-471317-j9/locations/europe-west4/ragCorpora/6917529027641081856"
 
 STAGING_DIR = "/app/data/uploads"   # DevOps drops files here
 INGESTED_DIR = "/app/data/ingested" # Local archive after successful import

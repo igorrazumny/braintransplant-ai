@@ -5,33 +5,37 @@ import json
 import traceback
 from typing import List, Tuple
 
+import time
 import vertexai
 from vertexai.preview import rag
 from utils.logger import get_logger
 from llm.adapter import call_llm  # For Gemini reranking
 
 # ======= Explicit config (no defaults) =======
-PROJECT_ID = os.getenv("GCP_PROJECT_ID", "fresh-myth-471317-j9")
-LOCATION = "europe-west3"
-RAG_CORPUS_NAME = "projects/754198198954/locations/europe-west3/ragCorpora/2305843009213693952"
+PROJECT_ID = "fresh-myth-471317-j9"
+LOCATION = "europe-west4"
+RAG_CORPUS_NAME = "projects/fresh-myth-471317-j9/locations/europe-west4/ragCorpora/6917529027641081856"
+
 
 # High-recall caps
-TOP_K_SNIPPETS = 50  # First pass
-TOP_K_SNIPPETS_SECOND = 10  # Per sub-query in second pass
+TOP_K_SNIPPETS = 30  # Reduced from 50 to cut latency
+TOP_K_SNIPPETS_SECOND = 10
 MAX_SUB_QUERIES = 3
 MIN_SNIPPET_LEN = 20
 MAX_CONTEXT_CHARS = 120_000
 
 # Reranking config
-ENABLE_SECOND_PASS = True  # Second RAG pass for multi-entity
-ENABLE_RERANK = True  # Second evaluating model (Gemini-based)
-RERANK_MODEL = "gemini-2.5-pro"  # Defaults to Pro; switch to "gemini-2.5-flash" via env if latency >20s
-RERANK_BATCH_SIZE = 10  # Batch snippets for fewer LLM calls
-RERANK_TIMEOUT_S = 10  # Per batch timeout
+ENABLE_SECOND_PASS = False
+ENABLE_RERANK = False
+RERANK_MODEL = "gemini-2.5-pro"  # Env override to "gemini-2.5-flash" for speed
+RERANK_BATCH_SIZE = 5  # Reduced from 10 for faster batches
+RERANK_TIMEOUT_S = 60  # Increased from 30
+RERANK_MAX_RETRIES = 2  # New: retries per batch
+RERANK_FAILED_BATCH_THRESHOLD = 0.5  # New: if >50% batches fail, skip rerank
 
 
 def _init_vertex(logger) -> None:
-    if not PROJECT_ID or PROJECT_ID == "your-gcp-project-id":
+    if not PROJECT_ID:
         raise ValueError("GCP_PROJECT_ID is not set correctly.")
     vertexai.init(project=PROJECT_ID, location=LOCATION)
     logger.info(f"vertexai.init(project={PROJECT_ID}, location={LOCATION})")
@@ -120,22 +124,37 @@ def _gemini_rerank(logger, user_query: str, snippets: List[str]) -> List[str]:
 
     batches = [snippets[i:i + RERANK_BATCH_SIZE] for i in range(0, len(snippets), RERANK_BATCH_SIZE)]
     ranked_snippets = []
+    failed_batches = 0
 
-    for batch in batches:
+    for batch_idx, batch in enumerate(batches):
         system_prompt = (
             "You are a reranker. For each snippet, score its relevance to the query on a scale of 1-10. "
             "Output strict JSON array of scores only, matching the order of snippets."
         )
         prompt = f"Query: {user_query}\nSnippets:\n" + "\n".join(f"[{i+1}] {s[:200]}" for i, s in enumerate(batch))
-        try:
-            raw = call_llm(system_prompt, prompt, timeout_s=RERANK_TIMEOUT_S)  # Removed model arg; defaults to Pro
-            scores = json.loads(raw)
-            if len(scores) != len(batch):
-                raise ValueError("Score length mismatch")
-            ranked_snippets.extend(zip(scores, batch))
-        except Exception as e:
-            logger.error(f"Rerank batch failed: {e}. Skipping batch.")
-            ranked_snippets.extend([(0, s) for s in batch])  # Fallback low score
+
+        for attempt in range(RERANK_MAX_RETRIES + 1):
+            try:
+                raw = call_llm(system_prompt, prompt, timeout_s=RERANK_TIMEOUT_S)
+                if not raw.strip():
+                    raise ValueError("Empty response from LLM")
+                scores = json.loads(raw)
+                if len(scores) != len(batch):
+                    raise ValueError("Score length mismatch")
+                ranked_snippets.extend(zip(scores, batch))
+                break  # Success
+            except Exception as e:
+                logger.error(f"Rerank batch {batch_idx+1} failed (attempt {attempt+1}): {e}")
+                if attempt < RERANK_MAX_RETRIES:
+                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s
+                else:
+                    failed_batches += 1
+                    ranked_snippets.extend([(0, s) for s in batch])  # Fallback
+
+    # Fallback: If too many failures, return original order (disable rerank)
+    if failed_batches / len(batches) > RERANK_FAILED_BATCH_THRESHOLD:
+        logger.warning("Too many rerank failures; falling back to no reranking")
+        return snippets  # Original order
 
     ranked_snippets.sort(key=lambda x: x[0], reverse=True)
     return [s for score, s in ranked_snippets]
